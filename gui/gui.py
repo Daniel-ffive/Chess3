@@ -1,36 +1,18 @@
-from tkinter import Tk, Label, Entry, Button, PhotoImage
+from tkinter import Tk, Label, Entry, Button, PhotoImage, Canvas
 from src.Chess2 import Board
 from src.game_setup import square_names
 import os
 
-img_folder = os.path.join("..", "pieces_img")
 
-light_color = "#FFF3D6"
-dark_color = "#C9BA95"
-accent_color = "#95A5C9"
-dark_squares = []
-light_squares = []
-for idx, square_name in enumerate(square_names):
-    row = idx % 8
-    col = idx // 8
-    if row % 2 == 0 and col % 2 == 0 or row % 2 == 1 and col % 2 == 1:
-        dark_squares.append(square_name)
-    else:
-        light_squares.append(square_name)
-
-
-def switch_turn(color):
-    if color == "white":
-        return "black"
-    else:
-        return "white"
-
-
-def render_piece(tk_square, sq_name):
-    piece_on_square = getattr(board, sq_name)
-    piece_img = PhotoImage(file=os.path.join(img_folder, piece_on_square + '.png'))
-    tk_square.config(image=piece_img, cursor="hand2")
-    tk_square.image = piece_img
+def render_on_start():
+    col_dict = {1: 'a', 2: 'b', 3: 'c', 4: 'd', 5: 'e', 6: 'f', 7: 'g', 8: 'h'}
+    for i in range(8):
+        board_canvas.create_text(space_for_enumeration // 2, square_size // 2 + i * square_size,
+                                 text=str(8 - i))
+        board_canvas.create_text(space_for_enumeration + square_size // 2 + i * square_size,
+                                 space_for_enumeration // 2 + square_size * 8,
+                                 text=col_dict[i + 1])
+    render_board()
 
 
 def render_board():
@@ -41,86 +23,105 @@ def render_board():
             bg_color = dark_color
         else:
             bg_color = light_color
-        tk_squares_dict[sq_name] = Label(main_window, bg=bg_color, name=sq_name)
-        tk_squares_dict[sq_name].grid(column=col_local+1, row=7 - row_local)
-        tk_squares_dict[sq_name].bind('<Button-1>', enter_square_by_clicking)
-        render_piece(tk_squares_dict[sq_name], sq_name)
+        x_pos = (i//8)*square_size+space_for_enumeration
+        y_pos = ((7-i) % 8)*square_size
+        board_canvas.create_rectangle((i//8)*square_size+space_for_enumeration,
+                                      ((7-i) % 8)*square_size,
+                                      ((i//8)+1)*square_size+space_for_enumeration,
+                                      (((7-i) % 8)+1)*square_size,
+                                      fill=bg_color, width=0)
+        render_piece(sq_name, x_pos, y_pos)
+
+
+def render_piece(sq_name, x_pos, y_pos):
+    piece_on_square = getattr(board, sq_name)
+    piece_img = PhotoImage(file=os.path.join(img_folder, piece_on_square + '.png'))
+    setattr(main_window, sq_name, piece_img)
+    board_canvas.create_image(x_pos, y_pos, anchor="nw", image=piece_img)
+
+
+def get_square_from_coord(x, y):
+    for i, sq_name in enumerate(square_names):
+        if ((i//8)*square_size+space_for_enumeration < x < ((i//8)+1)*square_size+space_for_enumeration
+                and ((7-i) % 8)*square_size < y < (((7-i) % 8)+1)*square_size):
+            return sq_name
+    return None
+
+
+def switch_turn(color):
+    if color == "white":
+        return "black"
+    else:
+        return "white"
 
 
 def make_move():
     global color_to_move
-    from_square = move_from_entry.get()
-    move_from_entry.delete(0, len(from_square))
-    to_square = move_to_entry.get()
-    move_to_entry.delete(0, len(to_square))
+    from_square = clicker.move_from
+    to_square = clicker.move_to
     if board.move_is_legal(from_square, to_square, color_to_move):
         board.move_if_legal(from_square, to_square, color_to_move)
-        render_board()
         color_to_move = switch_turn(color_to_move)
-        message.config(text="")
-        move_label.config(text=f"{color_to_move}, please enter your move:")
-    else:
-        message.config(text="illegal move, try again!")
-        render_board()
-    if board.game_ended:
-        message.config(text=board.result)
-        render_board()
+    render_board()
 
 
-def enter_square_by_clicking(event):
-    widget_name = str(event.widget)[1:]
-    move_from = move_from_entry.get()
-    if len(move_from) == 0:
-        move_from_entry.insert(0, widget_name)
-        event.widget.config(bg=accent_color)
-    elif len(move_from) == 2:
-        if move_from == widget_name:
-            move_from_entry.delete(0, 2)
-            if widget_name in dark_squares:
-                event.widget.config(bg=dark_color)
-            if widget_name in light_squares:
-                event.widget.config(bg=light_color)
-        else:
-            move_to_entry.insert(0, widget_name)
+class Clicker:
+
+    def __init__(self):
+        self.move_from = None
+        self.move_to = None
+
+    def on_grab(self, event):
+        self.move_from = get_square_from_coord(event.x, event.y)
+
+    def on_drag(self, event):
+        if self.move_from:
+            setattr(main_window, self.move_from, empty_img)
+            piece_on_square = getattr(board, self.move_from)
+            piece_img = PhotoImage(file=os.path.join(img_folder, piece_on_square + '.png'))
+            board_canvas.create_image(event.x, event.y, image=piece_img)
+            setattr(main_window, "floating", piece_img)
+
+    def on_drop(self, event):
+        self.move_to = get_square_from_coord(event.x, event.y)
+        if self.move_from and self.move_to:
             make_move()
 
 
-def reset_game():
-    global board
-    board = Board()
-    global color_to_move
-    color_to_move = "white"
-    render_board()
-    message.config(text="")
-    global move_label
-    move_label.config(text="white, please enter your move:")
-
-
 if __name__ == '__main__':
+    img_folder = os.path.join("..", "pieces_img")
+    light_color = "#FFF3D6"
+    dark_color = "#C9BA95"
+    accent_color = "#95A5C9"
+    dark_squares = []
+    light_squares = []
+    space_for_enumeration = 30
+    square_size = 45
+
+    for idx, square_name in enumerate(square_names):
+        row = idx % 8
+        col = idx // 8
+        if row % 2 == 0 and col % 2 == 0 or row % 2 == 1 and col % 2 == 1:
+            dark_squares.append(square_name)
+        else:
+            light_squares.append(square_name)
+
+    main_window = Tk()
+
+    empty_img = PhotoImage(file=os.path.join(img_folder, 'empty.png'))
+
     board = Board()
     color_to_move = "white"
-    main_window = Tk()
-    tk_squares_dict = dict()
-    tk_buttons_dict = dict()
-    render_board()
-    col_dict = {1: 'a', 2: 'b', 3: 'c', 4: 'd', 5: 'e', 6: 'f', 7: 'g', 8: 'h'}
-    for idx in range(8):
-        Label(main_window, text=str(idx+1)).grid(column=0, row=7-idx)
-        Label(main_window, text=col_dict[idx+1]).grid(column=idx+1, row=8)
 
-    move_label = Label(main_window, text=f"{color_to_move}, please enter your move:")
-    move_label.grid(column=9, row=3, columnspan=2)
-    move_from_label = Label(main_window, text="from square:")
-    move_from_label.grid(column=9, row=4)
-    move_to_label = Label(main_window, text="to square:")
-    move_to_label.grid(column=10, row=4)
-    move_from_entry = Entry(main_window, width=3)
-    move_from_entry.grid(column=9, row=5)
-    move_to_entry = Entry(main_window, width=3)
-    move_to_entry.grid(column=10, row=5)
-    Button(main_window, text='confirm move', command=make_move).grid(column=9, row=6, columnspan=2)
-    message = Label(main_window)
-    message.grid(column=9, row=7, columnspan=2)
-    Button(main_window, text='reset game', command=reset_game).grid(column=9, row=8, columnspan=2)
+    board_canvas = Canvas(main_window, width=8*square_size+space_for_enumeration,
+                          height=8*square_size+space_for_enumeration, name="chess_board")
+    board_canvas.pack()
+    render_on_start()
+
+    clicker = Clicker()
+
+    board_canvas.bind('<Button-1>', clicker.on_grab)
+    board_canvas.bind('<B1-Motion>', clicker.on_drag)
+    board_canvas.bind('<ButtonRelease-1>', clicker.on_drop)
 
     main_window.mainloop()
