@@ -411,7 +411,7 @@ class TestKingMovement(unittest.TestCase):
         self.assertTrue(self.board.is_reachable("h6", "g5", "black"))
 
     def test_kingCannotMoveOffBoard(self):
-        self.assertFalse(self.board.is_reachable("h6", "i6", "black"))
+        self.assertFalse(self.board.move_is_legal("h6", "i6", "black"))
 
 
 class TestKingInCheck(unittest.TestCase):
@@ -451,6 +451,55 @@ class TestKingInCheck(unittest.TestCase):
         self.assertTrue(self.board.king_in_check("white"))
         self.assertFalse(self.board.king_in_check("black"))
 
+    def test_kingInCheck_ifAttackedByRook(self):
+        self.board.put("black rook", "a6")
+        self.assertTrue(self.board.king_in_check("white"))
+        self.assertFalse(self.board.king_in_check("black"))
+
+    def test_kingInCheck_ifAttackedByRook2(self):
+        self.board.put("white rook", "h3")
+        self.assertTrue(self.board.king_in_check("black"))
+        self.assertFalse(self.board.king_in_check("white"))
+
+    def test_kingInCheck_ifAttackedByRookHorizontally(self):
+        self.board.put("black rook", "h3")
+        self.assertTrue(self.board.king_in_check("white"))
+        self.assertFalse(self.board.king_in_check("black"))
+
+    def test_kingInCheck_ifAttackedByRookHorizontally2(self):
+        self.board.put("white queen", "a6")
+        self.assertTrue(self.board.king_in_check("black"))
+        self.assertFalse(self.board.king_in_check("white"))
+
+    def test_kingInCheck_ifAttackedByQueenDiagonallyRightUp(self):
+        self.board.put("black queen", "d6")
+        self.assertTrue(self.board.king_in_check("white"))
+        self.assertFalse(self.board.king_in_check("black"))
+
+    def test_kingInCheck_ifAttackedByQueenDiagonallyRightDown(self):
+        self.board.put("white queen", "e3")
+        self.board.free_square("h6")
+        self.board.put("black king", "b3")
+        self.assertTrue(self.board.king_in_check("black"))
+        self.assertFalse(self.board.king_in_check("white"))
+
+    def test_kingInCheck_ifAttackedByBishopDiagonallyLeftUp(self):
+        self.board.put("black bishop", "d6")
+        self.board.free_square("a3")
+        self.board.put("white king", "g3")
+        self.assertTrue(self.board.king_in_check("white"))
+        self.assertFalse(self.board.king_in_check("black"))
+
+    def test_kingInCheck_ifAttackedByBishopDiagonallyLeftDown(self):
+        self.board.put("white bishop", "e3")
+        self.assertTrue(self.board.king_in_check("black"))
+        self.assertFalse(self.board.king_in_check("white"))
+
+    def test_kingInCheckifAttackedbyKnight(self):
+        self.board.put("black knight", "b5")
+        self.assertTrue(self.board.king_in_check("white"))
+        self.assertFalse(self.board.king_in_check("black"))
+
     def test_kingNotInCheck_ifInFrontOfPawn(self):
         self.board.put("black pawn", "a4")
         self.assertFalse(self.board.king_in_check("white"))
@@ -458,6 +507,21 @@ class TestKingInCheck(unittest.TestCase):
     def test_kingNotInCheck_ifTwoStepsFromPawnOnInitialSquare(self):
         self.board.move("a3", "e5")
         self.assertFalse(self.board.king_in_check("white"))
+
+    def test_kingNotInCheck_ifPieceBlocks(self):
+        self.board = Board()
+        self.board.put("black queen", "e6")
+        self.assertFalse(self.board.king_in_check("white"))
+
+    def test_kingInCheckifAttackedByWhitePawn(self):
+        self.board.put("white pawn", "g5")
+        self.assertTrue(self.board.king_in_check("black"))
+        self.assertFalse(self.board.king_in_check("white"))
+
+    def test_kingInCheckifAttackedBlackByPawn(self):
+        self.board.put("black pawn", "b4")
+        self.assertTrue(self.board.king_in_check("white"))
+        self.assertFalse(self.board.king_in_check("black"))
 
 
 class TestFoolsMate(unittest.TestCase):

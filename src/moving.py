@@ -1,5 +1,8 @@
 col_dict = {"a": 1, "b": 2, "c": 3, "d": 4,
             "e": 5, "f": 6, "g": 7, "h": 8}
+rev_col_dict = {1: "a", 2: "b", 3: "c", 4: "d",
+                5: "e", 6: "f", 7: "g", 8: "h"}
+knight_move_vectors = [(2, 1), (1, 2), (-1, 2), (-2, 1), (-2, -1), (-1, -2), (1, -2), (2, -1)]
 
 
 def reverse_dict(dictionary):
@@ -41,6 +44,15 @@ def move_is_knightmove(from_square, to_square):
 def get_move_vector(from_square, to_square):
     return (get_distance_between_rows(from_square, to_square),
             get_distance_between_columns(from_square, to_square))
+
+
+def get_to_square(from_square, move_vector):
+    try:
+        to_square = (rev_col_dict[col_dict[from_square[0]] + move_vector[1]] +
+                     str(int(from_square[1]) + move_vector[0]))
+    except KeyError:
+        to_square = "x0"
+    return to_square
 
 
 def get_squares_in_between(from_square, to_square):

@@ -1,6 +1,27 @@
 from src.moving import get_squares_in_between, move_is_vertical, get_distance_between_rows, move_is_diagonal, \
-    move_is_knightmove, move_is_rookmove, move_is_queenmove, move_is_kingmove, get_opposite_color
+    move_is_knightmove, move_is_rookmove, move_is_queenmove, move_is_kingmove, get_opposite_color, get_to_square, \
+    knight_move_vectors, col_dict
 from src.game_setup import square_names, square_names_for_display
+import time
+
+
+def timeit(func):
+    def measure_time(*args, **kw):
+        start_time = time.time()
+        result = func(*args, **kw)
+        print("Processing time of %s(): %.2f seconds."
+              % (func.__qualname__, time.time() - start_time))
+        return result
+    return measure_time
+
+
+def countit(func):
+    def count_calls(*args, **kw):
+        count_calls.calls += 1
+        return func(*args, **kw)
+    count_calls.calls = 0
+    count_calls.name = func.__qualname__
+    return count_calls
 
 
 class Board:
@@ -80,15 +101,19 @@ class Board:
         self.last_move = tuple()
         self.last_piece_captured = "empty"
 
+    @countit
     def put(self, piece, square):
         setattr(self, square, piece)
 
+    @countit
     def free_square(self, square):
         setattr(self, square, "empty")
 
+    @countit
     def is_occupied(self, square):
         return getattr(self, square) != "empty"
 
+    @countit
     def move(self, from_square, to_square, undo=False):
         if not undo:
             self.last_move = (from_square, to_square)
@@ -97,16 +122,19 @@ class Board:
         self.put(piece, to_square)
         self.free_square(from_square)
 
+    @countit
     def color_that_occupies(self, square):
         color = getattr(self, square).split(" ")[0]
         return color
 
+    @countit
     def is_on_board(self, square):
         if getattr(self, square, "False") == "False":
             return False
         else:
             return True
 
+    @countit
     def path_is_clear(self, from_square, to_square):
         for square in get_squares_in_between(from_square, to_square):
             if self.is_occupied(square):
@@ -114,6 +142,7 @@ class Board:
         else:
             return True
 
+    @countit
     def get_kind_of_piece_on(self, square):
         piece = getattr(self, square)
         if " " in piece:
@@ -121,9 +150,8 @@ class Board:
         else:
             return piece
 
+    @countit
     def is_reachable(self, from_square, to_square, color_to_move):
-        if not self.is_on_board(to_square):
-            return False
         if not self.correct_color_is_moved(from_square, color_to_move):
             return False
         if not self.path_is_clear(from_square, to_square):
@@ -146,6 +174,7 @@ class Board:
                     self.move_is_castling(from_square, to_square, color_to_move))
         return False
 
+    @countit
     def pawn_move_is_legal(self, from_square, to_square):
         if self.pawn_moves_forward(from_square, to_square):
             if move_is_vertical(from_square, to_square) and getattr(self, to_square) == "empty":
@@ -160,15 +189,18 @@ class Board:
                 return True
         return False
 
+    @countit
     def pawn_moves_forward(self, from_square, to_square):
         if self.color_that_occupies(from_square) == "white":
             return int(to_square[1]) > int(from_square[1])
         if self.color_that_occupies(from_square) == "black":
             return int(to_square[1]) < int(from_square[1])
 
+    @countit
     def square_is_occupied_by_own_color(self, color, square):
         return self.color_that_occupies(square) == color
 
+    @countit
     def pawn_is_on_initial_square(self, square):
         color = self.color_that_occupies(square)
         if color == "white" and square[1] == "2":
@@ -177,19 +209,23 @@ class Board:
             return True
         return False
 
+    @countit
     def move_is_capture_move(self, from_square, to_square):
         return (self.color_that_occupies(to_square) != "empty"
                 and self.color_that_occupies(to_square) != self.color_that_occupies(from_square))
 
+    @countit
     def correct_color_is_moved(self, from_square, color_to_move):
         return self.color_that_occupies(from_square) == color_to_move
 
+    @countit
     def king_in_check_after_move(self, from_square, to_square, color_to_move):
         self.move(from_square, to_square)
         king_in_check = self.king_in_check(color_to_move)
         self.undo_last_move()
         return king_in_check
 
+    @countit
     def get_legal_to_squares(self, from_square):
         legal_moves = set()
         for to_square in square_names:
@@ -198,23 +234,129 @@ class Board:
                 legal_moves.add(to_square)
         return legal_moves
 
+    @countit
     def undo_last_move(self):
         self.move(self.last_move[1], self.last_move[0], undo=True)
         self.put(self.last_piece_captured, self.last_move[1])
 
+    def white_king_in_check(self):
+        return self.king_in_check("white")
+
+    def black_king_in_check(self):
+        return self.king_in_check("black")
+
+    @countit
     def king_in_check(self, color):
-        opposite_color = get_opposite_color(color)
-        for from_square in square_names:
-            if self.color_that_occupies(from_square) == opposite_color:
-                for to_square in self.get_legal_to_squares(from_square):
-                    if getattr(self, to_square) == color + " king":
-                        return True
+        king_square = self.get_king_square(color)
+        # is king checked by knight?
+        for knight_move_vector in knight_move_vectors:
+            to_square = get_to_square(king_square, knight_move_vector)
+            if self.is_on_board(to_square):
+                if getattr(self, to_square) == get_opposite_color(color) + " knight":
+                    return True
+        # is an opposite rook/queen closer than a friendly piece on a vertical?
+        for move_vector in range(1, 9):
+            to_square = get_to_square(king_square, (move_vector, 0))
+            if self.is_on_board(to_square):
+                if self.king_in_check_straight(color, to_square):
+                    return True
+                if getattr(self, to_square) != "empty":
+                    break
+        for move_vector in range(-1, -9, -1):
+            to_square = get_to_square(king_square, (move_vector, 0))
+            if self.is_on_board(to_square):
+                if self.king_in_check_straight(color, to_square):
+                    return True
+                if getattr(self, to_square) != "empty":
+                    break
+        #  is an opposite rook/queen closer than a friendly piece on a horizontal?
+        for move_vector in range(1, 9):
+            to_square = get_to_square(king_square, (0, move_vector))
+            if self.is_on_board(to_square):
+                if self.king_in_check_straight(color, to_square):
+                    return True
+                if getattr(self, to_square) != "empty":
+                    break
+        for move_vector in range(-1, -9, -1):
+            to_square = get_to_square(king_square, (0, move_vector))
+            if self.is_on_board(to_square):
+                if self.king_in_check_straight(color, to_square):
+                    return True
+                if getattr(self, to_square) != "empty" or not self.is_on_board(to_square):
+                    break
+        # is an opposite bishop/queen closer than a friendly piece on a diagonal?
+        for move_vector in range(1, 9):
+            to_square = get_to_square(king_square, (move_vector, move_vector))
+            if self.is_on_board(to_square):
+                if self.king_in_check_diagonal(color, to_square):
+                    return True
+                if getattr(self, to_square) != "empty":
+                    break
+        for move_vector in range(1, 9):
+            to_square = get_to_square(king_square, (-move_vector, -move_vector))
+            if self.is_on_board(to_square):
+                if self.king_in_check_diagonal(color, to_square):
+                    return True
+                if getattr(self, to_square) != "empty":
+                    break
+        for move_vector in range(1, 9):
+            to_square = get_to_square(king_square, (-move_vector, move_vector))
+            if self.is_on_board(to_square):
+                if self.king_in_check_diagonal(color, to_square):
+                    return True
+                if getattr(self, to_square) != "empty":
+                    break
+        for move_vector in range(1, 9):
+            to_square = get_to_square(king_square, (move_vector, -move_vector))
+            if self.is_on_board(to_square):
+                if self.king_in_check_diagonal(color, to_square):
+                    return True
+                if getattr(self, to_square) != "empty":
+                    break
+        # is an opposite pawn one diagonal in front of the king?
+        for move_vector in [(1, 1), (1, -1)]:
+            to_square = get_to_square(king_square, move_vector)
+            if self.is_on_board(to_square):
+                if color == "white" and getattr(self, to_square) == "black pawn":
+                    return True
+        for move_vector in [(-1, 1), (-1, -1)]:
+            to_square = get_to_square(king_square, move_vector)
+            if self.is_on_board(to_square):
+                if color == "black" and getattr(self, to_square) == "white pawn":
+                    return True
         return False
 
+    def get_king_square(self, color):
+        king_square = "e1"
+        for square in square_names:
+            if getattr(self, square) == color + ' king':
+                king_square = square
+                break
+        return king_square
+
+    def get_white_king_square(self):
+        return self.get_king_square("white")
+
+    def get_black_king_square(self):
+        return self.get_king_square("black")
+
+    def king_in_check_straight(self, color, to_square):
+        if (getattr(self, to_square) == get_opposite_color(color) + " queen"
+                or getattr(self, to_square) == get_opposite_color(color) + " rook"):
+            return True
+
+    def king_in_check_diagonal(self, color, to_square):
+        if (getattr(self, to_square) == get_opposite_color(color) + " queen"
+                or getattr(self, to_square) == get_opposite_color(color) + " bishop"):
+            return True
+
+    @countit
     def move_is_legal(self, from_square, to_square, color_to_move):
-        return (self.is_reachable(from_square, to_square, color_to_move)
+        return (self.is_on_board(from_square) and self.is_on_board(to_square)
+                and self.is_reachable(from_square, to_square, color_to_move)
                 and not self.king_in_check_after_move(from_square, to_square, color_to_move))
 
+    @countit
     def count_legal_moves(self, color):
         number_of_legal_moves = 0
         for from_square in square_names:
@@ -224,12 +366,15 @@ class Board:
                         number_of_legal_moves += 1
         return number_of_legal_moves
 
+    @countit
     def is_checkmated(self, color):
         return self.count_legal_moves(color) == 0 and self.king_in_check(color)
 
+    @countit
     def is_stalemate(self, color):
         return self.count_legal_moves(color) == 0 and not self.king_in_check(color)
 
+    #@timeit
     def move_if_legal(self, from_square, to_square, color_to_move):
         if self.move_is_legal(from_square, to_square, color_to_move):
             self.move(from_square, to_square)
@@ -255,18 +400,23 @@ class Board:
                 self.h8_rook_has_moved = True
             self.game_ends(get_opposite_color(color_to_move))
 
+    @countit
     def move_is_white_castling_kingside(self, from_square, to_square):
         return (from_square, to_square) == ("e1", "g1") and not self.white_king_has_moved and not self.h1_rook_has_moved
 
+    @countit
     def move_is_black_castling_kingside(self, from_square, to_square):
         return (from_square, to_square) == ("e8", "g8") and not self.black_king_has_moved and not self.h8_rook_has_moved
 
+    @countit
     def move_is_white_castling_queenside(self, from_square, to_square):
         return (from_square, to_square) == ("e1", "c1") and not self.white_king_has_moved and not self.a1_rook_has_moved
 
+    @countit
     def move_is_black_castling_queenside(self, from_square, to_square):
         return (from_square, to_square) == ("e8", "c8") and not self.black_king_has_moved and not self.a8_rook_has_moved
 
+    @countit
     def move_is_castling(self, from_square, to_square, color):
         return (color == "white" and
                     (self.move_is_white_castling_kingside(from_square, to_square) or
@@ -276,6 +426,7 @@ class Board:
                     (self.move_is_black_castling_kingside(from_square, to_square) or
                      self.move_is_black_castling_queenside(from_square, to_square)))
 
+    @countit
     def display(self):
         display_string = ""
         white_color = "\033[96m"
@@ -295,6 +446,7 @@ class Board:
                 display_string += "\n"
         return display_string
 
+    @countit
     def game_ends(self, color):
         if self.is_checkmated(color):
             self.game_ended = True

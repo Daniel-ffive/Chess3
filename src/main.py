@@ -3,7 +3,17 @@ from src.Chess2 import Board
 board = Board()
 color_to_move = "white"
 
+board.move_if_legal("e2", "e4", "white")
+print(board.put.name, board.put.calls)
+print(board.free_square.name, board.free_square.calls)
+print(board.is_on_board.name, board.is_on_board.calls)
+print(board.move.name, board.move.calls)
+print(board.is_reachable.name, board.is_reachable.calls)
+print(board.get_legal_to_squares.name, board.get_legal_to_squares.calls)
 
+
+
+'''
 def switch_turn(color):
     if color == "white":
         return "black"
@@ -26,3 +36,4 @@ while not board.game_ended:
         print("illegal move!")
 else:
     print(board.result)
+'''
